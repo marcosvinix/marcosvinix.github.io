@@ -13,6 +13,7 @@ scene = new THREE.Scene();    // Create main scene
 renderer = initRenderer();    // Init a basic renderer
 camera = initCamera(new THREE.Vector3(0, 20, 30)); // Init camera in this position
 material = setDefaultMaterial(); // create a basic material
+material.color.setHex( 0x61b645 ); // set material color
 light = initDefaultBasicLight(scene); // Create a basic light to illuminate the scene
 orbit = new OrbitControls( camera, renderer.domElement ); // Enable mouse rotation, pan, zoom etc.
 
@@ -29,18 +30,27 @@ scene.add(plane);
 
 // create 3 cubes with different sizes
 
+let sizes = [];
+
 for(let i = 0; i < 3; i++){
   let size = Math.floor(Math.random()*5+1);
+
+  while(sizes.includes(size)){
+    size = Math.floor(Math.random()*5+1)
+  }
+
+  sizes.push(size);
   let cubeGeometry = new THREE.BoxGeometry(size, size, size);
   let cube = new THREE.Mesh(cubeGeometry, material);
-  cube.position.set((i-1)*6, size/2, 0.0)
+  cube.position.set((i-1)*6, size/2, 0.0);
+ 
   scene.add(cube);
 }
 
 
 // Use this to show information onscreen
 let controls = new InfoBox();
-  controls.add("Exercicio 01:");
+  controls.add("Exercício 01:");
   controls.addParagraph();
   controls.add("Criação de três cubos de diferentes tamanhos");
   controls.show();

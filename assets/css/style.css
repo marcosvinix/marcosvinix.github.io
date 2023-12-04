@@ -1,0 +1,13 @@
+.bg-dark-01{
+    background-color: #222222 !important;
+}
+.bg-dark-02{
+    background-color: #131313 !important;
+}
+.bg-dark-03{
+    background-color: #333333 !important;
+}
+
+.list-group-item:hover{
+    background-color: #222222 !important;
+}

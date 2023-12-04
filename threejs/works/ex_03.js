@@ -13,6 +13,7 @@ scene = new THREE.Scene();    // Create main scene
 renderer = initRenderer();    // Init a basic renderer
 camera = initCamera(new THREE.Vector3(0, 20, 30)); // Init camera in this position
 material = setDefaultMaterial(); // create a basic material
+material.color.setHex( 0x61b645 ); // set material color
 light = initDefaultBasicLight(scene); // Create a basic light to illuminate the scene
 orbit = new OrbitControls( camera, renderer.domElement ); // Enable mouse rotation, pan, zoom etc.
 
@@ -27,7 +28,7 @@ scene.add( axesHelper );
 let plane = createGroundPlaneXZ(30, 30)
 scene.add(plane);
 
-// create 3 cubes with different sizes
+// create 9 cubes
 
 for(let i = 0; i < 3; i++){
   for(let j = 0; j < 3; j++){
@@ -42,7 +43,7 @@ for(let i = 0; i < 3; i++){
 
 // Use this to show information onscreen
 let controls = new InfoBox();
-  controls.add("Exercicio 03:");
+  controls.add("Exercício 03:");
   controls.addParagraph();
   controls.add("Criação de nove cubos de forma iterativa");
   controls.show();
@@ -53,3 +54,4 @@ function render()
   requestAnimationFrame(render);
   renderer.render(scene, camera) // Render scene
 }
+
