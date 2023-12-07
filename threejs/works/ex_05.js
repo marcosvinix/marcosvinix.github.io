@@ -25,7 +25,7 @@ let axesHelper = new THREE.AxesHelper(45);
 scene.add( axesHelper );
 
 // create the ground plane
-let plane = createGroundPlaneXZ(75, 75)
+let plane = createGroundPlaneXZ(25, 25)
 scene.add(plane);
 
 // create 3 objects
@@ -34,18 +34,27 @@ scene.add(plane);
 
 for(let i = 0; i < 12; i++){
 
+    let raio = 8;
+    let angle = (i / 12) * Math.PI * 2;
+    let x = Math.cos(angle) * raio;
+    let z = Math.sin(angle) * raio;
+
     let SphereGeometry = new THREE.SphereGeometry(0.5);
     let sphere = new THREE.Mesh(SphereGeometry,material);
-    // plane.add(sphere);
-    // sphere.translateX(3);
+
+    plane.add(sphere);
+    
+    sphere.translateX(x);
+    sphere.translateY(z);
+    sphere.translateZ(0.5)
 }
 
 
 // Use this to show information onscreen
 let controls = new InfoBox();
-  controls.add("Exercício 04:");
+  controls.add("Exercício 05:");
   controls.addParagraph();
-  controls.add("Criação de uma mesa");
+  controls.add("Criação de esferas em posições diferentes.");
   controls.show();
 
 render();

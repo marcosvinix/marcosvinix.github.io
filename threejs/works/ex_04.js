@@ -25,7 +25,7 @@ let axesHelper = new THREE.AxesHelper(45);
 scene.add( axesHelper );
 
 // create the ground plane
-let plane = createGroundPlaneXZ(75, 75)
+let plane = createGroundPlaneXZ(30, 30)
 scene.add(plane);
 
 // create 3 objects
