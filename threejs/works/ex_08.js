@@ -23,8 +23,8 @@ createTeapot(0.0,  0.4,  2.0, Math.random() * 0xffffff);
 createTeapot(0.0,  0.4, -2.0, Math.random() * 0xffffff);    
 
 let camPos  = new THREE.Vector3(3, 4, 8);
-let camUp   = new THREE.Vector3(0.0, 1.0, 0.0);
-let camLook = new THREE.Vector3(0.0, 0.0, 0.0);
+let camUp   = new THREE.Vector3(0.0, 0.5, 0.0);
+let camLook = new THREE.Vector3(0.0, 0.5, -1.0);
 var message = new SecondaryBox("");
 
 // Main camera
@@ -33,6 +33,10 @@ camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight,
    camera.up.copy( camUp );
    camera.lookAt(camLook);
 
+let cameraHolder = new THREE.Object3D();
+cameraHolder.add(camera);
+scene.add(cameraHolder);
+
 render();
 
 function updateCamera()
@@ -40,40 +44,31 @@ function updateCamera()
    // DICA: Atualize a câmera aqui!
    camera.position.copy(camPos);
    camera.lookAt(camLook);
+   camera.up.copy( camUp );
 
    message.changeMessage("Pos: {" + camPos.x.toFixed(2) + ", " + camPos.y.toFixed(2) + ", " + camPos.z.toFixed(2) + "} " + 
                          "/ LookAt: {" + camLook.x.toFixed(2) + ", " + camLook.y.toFixed(2) + ", " + camLook.z.toFixed(2) + "}");
 }
 
 function keyboardUpdate() {
-   const speed = 0.07;
+   const translateSpeed = 0.1;
+   const rotateSpeed = 1;
    keyboard.update();
    
    // DICA: Insira aqui seu código para mover a câmera
 
-   if(keyboard.pressed('up')) camPos.x -= speed;
+   if(keyboard.pressed('up')) cameraHolder.rotateX(THREE.MathUtils.degToRad(rotateSpeed))
+   if(keyboard.pressed('down')) cameraHolder.rotateX(THREE.MathUtils.degToRad(-rotateSpeed))
+   if(keyboard.pressed('right')) cameraHolder.rotateY(THREE.MathUtils.degToRad(rotateSpeed))
+   if(keyboard.pressed('left')) cameraHolder.rotateY(THREE.MathUtils.degToRad(-rotateSpeed))
+   if(keyboard.pressed('e')) cameraHolder.rotateZ(THREE.MathUtils.degToRad(-rotateSpeed))
+   if(keyboard.pressed('q')) cameraHolder.rotateZ(THREE.MathUtils.degToRad(rotateSpeed))
    
-   if(keyboard.pressed('down')) camPos.x += speed;
+   if(keyboard.pressed('a')) cameraHolder.translateX(THREE.MathUtils.degToRad(-0.1))
+   if(keyboard.pressed('d')) cameraHolder.translateX(THREE.MathUtils.degToRad(0.1))
+   if(keyboard.pressed('w')) cameraHolder.translateZ(THREE.MathUtils.degToRad(-0.1))
+   if(keyboard.pressed('s')) cameraHolder.translateZ(THREE.MathUtils.degToRad(0.1))
    
-   if(keyboard.pressed('left')) camPos.z -= speed;
-
-   if(keyboard.pressed('right')) camPos.z += speed;
-
-   if(keyboard.pressed('w')) camLook.x += speed;
-   
-   if(keyboard.pressed('a')) camLook.z -= speed;
-   
-   if(keyboard.pressed('s')) camLook.x -= speed;
-
-   if(keyboard.pressed('d')) camLook.z += speed;
-
-   if(keyboard.pressed('e')) camLook.y -= speed;
-
-   if(keyboard.pressed('q')) camLook.y += speed;
-
-   if(keyboard.pressed('pageup')) camPos.y += speed;
-
-   if(keyboard.pressed('pagedown')) camPos.y -= speed; 
    
    
    updateCamera();
