@@ -1,11 +1,11 @@
 import * as THREE from  'three';
-import KeyboardState from '../libs/util/KeyboardState.js'
-import {TeapotGeometry} from '../build/jsm/geometries/TeapotGeometry.js';
+import KeyboardState from '/three/threejs/libs/util/KeyboardState.js'
+import {TeapotGeometry} from '../../build/jsm/geometries/TeapotGeometry.js';
 import {initRenderer, 
         initDefaultSpotlight,
         createGroundPlaneXZ,
         SecondaryBox, 
-        onWindowResize} from "../libs/util/util.js";
+        onWindowResize} from "/three/threejs/libs/util/util.js";
 
 let scene, renderer, light, camera, keyboard;
 scene = new THREE.Scene();    // Create main scene
