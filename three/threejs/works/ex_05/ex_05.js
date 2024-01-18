@@ -1,12 +1,12 @@
 import * as THREE from  'three';
-import { OrbitControls } from '../build/jsm/controls/OrbitControls.js';
+import { OrbitControls } from '/three/threejs/build/jsm/controls/OrbitControls.js';
 import {initRenderer, 
         initCamera,
         initDefaultBasicLight,
         setDefaultMaterial,
         InfoBox,
         onWindowResize,
-        createGroundPlaneXZ} from "../libs/util/util.js";
+        createGroundPlaneXZ} from "/three/threejs/libs/util/util.js";
 
 let scene, renderer, camera, material, light, orbit;; // Initial variables
 scene = new THREE.Scene();    // Create main scene
@@ -25,36 +25,36 @@ let axesHelper = new THREE.AxesHelper(45);
 scene.add( axesHelper );
 
 // create the ground plane
-let plane = createGroundPlaneXZ(30, 30)
+let plane = createGroundPlaneXZ(25, 25)
 scene.add(plane);
 
 // create 3 objects
 
-let cubeGeometry = new THREE.BoxGeometry(11,0.3,6);
-let cube =  new THREE.Mesh(cubeGeometry,material);
-scene.add(cube);
-
-let coords = [{'x':5,'y':-1.5,'z':2},{'x':5,'y':-1.5,'z':-2},{'x':-5,'y':-1.5,'z':2},{'x':-5,'y':-1.5,'z':-2}]
 
 
-for(let i = 0; i < 4; i++){
+for(let i = 0; i < 12; i++){
 
-    let CylinderGeometry = new THREE.CylinderGeometry(0.2,0.2,3);
-    let cylinder = new THREE.Mesh(CylinderGeometry,material);
-    cube.add(cylinder);
-    cylinder.translateZ(coords[i].z);
-    cylinder.translateX(coords[i].x);
-    cylinder.translateY(coords[i].y);
+    let raio = 8;
+    let angle = (i / 12) * Math.PI * 2;
+    let x = Math.cos(angle) * raio;
+    let z = Math.sin(angle) * raio;
+
+    let SphereGeometry = new THREE.SphereGeometry(0.5);
+    let sphere = new THREE.Mesh(SphereGeometry,material);
+
+    plane.add(sphere);
+    
+    sphere.translateX(x);
+    sphere.translateY(z);
+    sphere.translateZ(0.5)
 }
-
-cube.position.set(0,3.03,0)
 
 
 // Use this to show information onscreen
 let controls = new InfoBox();
-  controls.add("Exercício 04:");
+  controls.add("Exercício 05:");
   controls.addParagraph();
-  controls.add("Criação de uma mesa");
+  controls.add("Criação de esferas em posições diferentes.");
   controls.show();
 
 render();

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Exercício - Ex03</title>
+    <title>Exercício - Ex01</title>
 
-    <link rel="shortcut icon" href="../favicon.ico">
-    <link rel="stylesheet" href="../html/resources/default.css">
+    <link rel="shortcut icon" href="/three/threejs/favicon.ico">
+    <link rel="stylesheet" href="/three/threejs/html/resources/default.css">
     <meta name="viewport" content="width=device-width, initial-scale=1">  
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
   </head>
@@ -13,17 +13,18 @@
   <!-- Import maps polyfill -- Remove this when import maps will be widely supported-->
   <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>  
   <script type="importmap"> 
-    {"imports": {"three": "../build/three.module.js"}} 
+    {"imports": {"three": "/three/threejs/build/three.module.js"}} 
   </script>  
 
-  <a href="/"><button class="btn btn-success position-absolute end-0 mt-3 me-3"> Voltar</button></a>
+  <button id="btnVoltar" class="btn btn-success position-absolute end-0 mt-3 me-3"> Voltar</button>
 
   <div id="webgl-output">   
-    <script type="module" src="ex_03.js"></script>
+    <script type="module" src="ex_01.js"></script>
   </div>
 
+  <script src="../script.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-  
+
 </body>
 
 </html>
