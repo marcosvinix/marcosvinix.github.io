@@ -60,13 +60,15 @@ scene.add(plane);
 let controls = new InfoBox();
   controls.add("Exercício 09:");
   controls.addParagraph();
-  controls.add("Movimentação das esferas");
+  controls.add("Movimentação das esferas com animação");
   controls.show();
 
 document.getElementById('btnSphere1').addEventListener('click', () => {
+  lerpConfig.destination1 = {x: 10, y:1, z:-5};
   lerpConfig.move1 = true;
 })
 document.getElementById('btnSphere2').addEventListener('click', () => {
+  lerpConfig.destination2 = {x: 10, y:1, z:5};
   lerpConfig.move2 = true;
 })
 document.getElementById('btnReset').addEventListener('click', () => {
