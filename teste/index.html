@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>League TD – Summoner's Rift (HTML)</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#0f1530; --ink:#e6ecff; --muted:#a2b1d9; --accent:#6ee7ff; --ok:#7cff6e; --warn:#ffd166; --bad:#ff6e9b;
+  }
+  html,body{height:100%;margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10183a 0%,#0b1020 60%);color:var(--ink);font:500 14px/1.5 system-ui,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+  .wrap{display:grid;grid-template-columns:1fr 320px;gap:10px;min-height:100dvh;padding:10px}
+  .card{background:linear-gradient(180deg,#101737,#0b1130);border:1px solid #1b2559;box-shadow:0 10px 30px rgba(0,0,0,.35);border-radius:18px}
+  #game{display:block;width:100%;height:100%;aspect-ratio:16/9;border-radius:18px}
+  .side{display:flex;flex-direction:column;gap:10px}
+  header.card{padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+  header h1{font-size:16px;margin:0;letter-spacing:.3px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{border:1px solid #24306b;background:#121a3f;color:var(--ink);padding:6px 10px;border-radius:999px}
+  .panel.card{padding:10px 12px}
+  .champ-btn{flex:1 1 calc(50% - 6px);display:flex;align-items:center;gap:8px;padding:8px;border-radius:14px;border:1px solid #25306f;background:#0f173d;cursor:pointer;user-select:none}
+  .champ-btn:hover{border-color:#3a4aa5}
+  .champ-swatch{width:18px;height:18px;border-radius:4px;border:1px solid #fff2}
+  .small{font-size:12px;color:var(--muted)}
+  .footer{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  button.primary{background:#142063;border:1px solid #2b3aa0;color:var(--ink);padding:8px 10px;border-radius:12px;cursor:pointer}
+  button.primary:disabled{opacity:.5;cursor:not-allowed}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Consolas,Monaco,Menlo,monospace;font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #32408d;background:#151e4a}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  .legend div{background:#0c153a;border:1px solid #1a2461;padding:6px;border-radius:10px}
+  canvas{image-rendering:pixelated}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="game" class="card" width="1280" height="720"></canvas>
+
+    <div class="side">
+      <header class="card">
+        <h1>League TD – Summoner's Rift</h1>
+        <div class="row">
+          <span class="pill" id="goldPill">Gold: 650</span>
+          <span class="pill" id="livesPill">Nexus ❤ 20</span>
+          <span class="pill" id="wavePill">Wave 1</span>
+        </div>
+      </header>
+
+      <section class="panel card">
+        <div class="small">Pick a champion and click the map to place. Press <span class="kbd">R</span> to sell (refund 70%), <span class="kbd">U</span> to upgrade (if available). Abilities trigger automatically.</div>
+        <div class="row" id="shop"></div>
+        <div class="legend">
+          <div><b>Minions</b><br>Basic waves. Faster colors are tougher (shielded). Jungle monsters appear as <i>Super Bloons</i>: Red, Blue, Dragon, Baron.</div>
+          <div><b>Champions</b><br>Ashe (slow), Garen (spin AoE), Lux (beam), Jinx (rockets splash), Teemo (shrooms mines).</div>
+        </div>
+      </section>
+
+      <section class="panel card footer">
+        <div>
+          <div class="small">Controls</div>
+          <div class="row">
+            <span class="kbd">1–5</span>
+            <span class="kbd">U</span>
+            <span class="kbd">R</span>
+            <span class="kbd">P</span>
+          </div>
+        </div>
+        <div class="row">
+          <button id="startBtn" class="primary">Start / Next Wave</button>
+          <button id="pauseBtn" class="primary">Pause (P)</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /* ====== Core setup ====== */
+  const cvs = document.getElementById('game');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  let last = 0, acc = 0; const TICK = 1000/60;
+  let paused = false;
+
+  const goldEl = document.getElementById('goldPill');
+  const livesEl = document.getElementById('livesPill');
+  const waveEl = document.getElementById('wavePill');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const shopEl = document.getElementById('shop');
+
+  const state = {
+    gold: 650,
+    lives: 20,
+    wave: 0,
+    placing: null, // key of champion to place
+    towers: [],
+    bullets: [],
+    creeps: [],
+    particles: [],
+    shrooms: [], // Teemo mines
+    selected: null,
+  };
+
+  const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+  /* ====== Map (Summoner-esque path) ====== */
+  // A single winding path inspired by SR river/lanes.
+  const path = [
+    {x: 50, y: 680}, {x: 200, y: 600}, {x: 260, y: 520}, {x: 340, y: 520}, {x: 420, y: 470},
+    {x: 520, y: 430}, {x: 600, y: 380}, {x: 690, y: 330}, {x: 760, y: 300}, {x: 845, y: 260},
+    {x: 930, y: 230}, {x: 1010, y: 200}, {x: 1120, y: 160}, {x: 1220, y: 110}
+  ];
+  const nexus = {x: 1240, y: 90};
+
+  function drawTerrain(){
+    // Background grass & lanes
+    ctx.fillStyle = '#0b1e12';
+    ctx.fillRect(0,0,W,H);
+    // Subtle tiling
+    for(let y=0;y<H;y+=32){
+      for(let x=0;x<W;x+=32){
+        ctx.fillStyle = ( (x/32 + y/32) % 2 ? '#0d2215' : '#0f2518');
+        ctx.fillRect(x,y,32,32);
+      }
+    }
+    // River suggestion
+    ctx.save();
+    ctx.globalAlpha = .5;
+    ctx.fillStyle = '#1e4f7a';
+    ctx.beginPath();
+    ctx.moveTo(0, H*0.75);
+    ctx.bezierCurveTo(W*0.3,H*0.65, W*0.6,H*0.55, W,H*0.35);
+    ctx.lineTo(W,H);
+    ctx.lineTo(0,H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Path
+    ctx.lineWidth = 34;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2b2b2b';
+    ctx.beginPath();
+    ctx.moveTo(path[0].x,path[0].y);
+    for(let i=1;i<path.length;i++) ctx.lineTo(path[i].x,path[i].y);
+    ctx.stroke();
+
+    ctx.lineWidth = 24;
+    ctx.strokeStyle = '#5f5138';
+    ctx.beginPath();
+    ctx.moveTo(path[0].x,path[0].y);
+    for(let i=1;i<path.length;i++) ctx.lineTo(path[i].x,path[i].y);
+    ctx.stroke();
+
+    // Nexus
+    drawPixelNexus(nexus.x, nexus.y);
+  }
+
+  function drawPixelNexus(x,y){
+    // tiny pixel-art nexus
+    const s=3; // pixel scale
+    const px=[
+      '........',
+      '..88A8..',
+      '.8AAA88.',
+      '.8A99A8.',
+      '.8AAA88.',
+      '..88A8..',
+      '...88...',
+      '...66...'
+    ];
+    for(let j=0;j<px.length;j++){
+      for(let i=0;i<px[j].length;i++){
+        const c=px[j][i]; if(c==='.') continue;
+        ctx.fillStyle = c==='8'? '#7db2ff' : (c==='A'? '#cde8ff' : (c==='9'?'#a1d4ff':'#5ad1ff'));
+        ctx.fillRect(x+i*s-12, y+j*s-12, s, s);
+      }
+    }
+  }
+
+  /* ====== Creeps (Minions & Jungle) ====== */
+  const CreepKinds = {
+    red:   {hp: 25, speed: 48, reward: 7, color:'#d94b4b'},
+    blue:  {hp: 40, speed: 56, reward: 8, color:'#4b7fd9'},
+    cannon:{hp: 150,speed: 42, reward: 20,color:'#bdbdbd'},
+    // Jungle bosses (super bloons)
+    redBuff:{hp: 600, speed: 50, reward: 60, color:'#c04a2b', boss:true, resist:"slow25"},
+    blueBuff:{hp: 650, speed: 52, reward: 60, color:'#2b69c0', boss:true, resist:"slow25"},
+    dragon:{hp: 1200, speed: 54, reward: 120, color:'#d4a63b', boss:true, resist:"burnRes"},
+    baron: {hp: 2400, speed: 58, reward: 200, color:'#9b4bd9', boss:true, resist:"stunRes"},
+  };
+
+  function makeCreep(kind){
+    const k=CreepKinds[kind];
+    return {kind, ...JSON.parse(JSON.stringify(k)), x:path[0].x, y:path[0].y, seg:0, slow:0, burn:0, stun:0, alive:true, t:0};
+  }
+
+  function moveCreep(c, dt){
+    c.t += dt;
+    if(c.stun>0){c.stun-=dt;return;}
+    const p0 = path[c.seg], p1 = path[c.seg+1];
+    if(!p1){ // reached nexus
+      c.alive=false; state.lives--; livesEl.textContent = `Nexus ❤ ${state.lives}`; shake(6); return; }
+    const baseSpd = c.speed * (c.slow>0 ? 0.6 : 1);
+    const spd = baseSpd * dt/1000;
+    const vx = p1.x - c.x, vy = p1.y - c.y; const d = Math.hypot(vx,vy) || 1;
+    c.x += vx/d * spd; c.y += vy/d * spd;
+    if(Math.hypot(p1.x-c.x,p1.y-c.y) < 2){ c.seg++; }
+    if(c.slow>0) c.slow-=dt;
+    if(c.burn>0){ c.burn -= dt; if(Math.random()<0.2) damageCreep(c, 1); }
+  }
+
+  function damageCreep(c, dmg){
+    if(!c.alive) return;
+    c.hp -= dmg; pop(c.x,c.y);
+    if(c.hp<=0){ c.alive=false; state.gold += CreepKinds[c.kind].reward; goldEl.textContent = `Gold: ${state.gold}`; }
+  }
+
+  /* ====== Towers (Champions) ====== */
+  const Champs = {
+    ASHE: {
+      name:'Ashe', cost: 200, range: 150, fireRate: .9, projSpd: 320, dmg: 12,
+      color:'#9ad0ff', key:'ASHE', code:'1', draw: drawAshe,
+      onHit:(c, t)=>{ c.slow = Math.max(c.slow, 800); },
+      upgrades:[
+        {name:'Frost Shot +', desc:'+30% slow, +1 dmg', apply:t=>{t.dmg+=1; t.onHit=(c)=>{c.slow=Math.max(c.slow,1100);} }},
+        {name:'Volley', desc:'Shoots 3 arrows', apply:t=>{t.multi=3;}},
+        {name:'Enchanted Arrow', desc:'Ult: stun strongest for 1.2s', apply:t=>{t.ult=(now)=>{if((t._ult||0)<now){t._ult=now+9000; let target = lockStrongest(); if(target){ target.stun = Math.max(target.stun,1200); burst(t.x,t.y); }}};}}
+      ]
+    },
+    GAREN: {
+      name:'Garen', cost: 230, range: 90, fireRate: .6, dmg: 7, spinAoE: true,
+      color:'#7cff6e', key:'GAREN', code:'2', draw: drawGaren,
+      onTick:(t,dt)=>{ t._spin = (t._spin||0)+dt; if(t._spin>1600){ t._spin=0; spin(t); } },
+      upgrades:[
+        {name:'Courage', desc:'+15% dmg, +10 range', apply:t=>{t.dmg=Math.round(t.dmg*1.15); t.range+=10;}},
+        {name:'Judgment+', desc:'Spin ticks faster', apply:t=>{t.spinFast=true;}},
+        {name:'Demacian Justice', desc:'Big execute nuke', apply:t=>{t.execute=0.12;}}
+      ]
+    },
+    LUX: {
+      name:'Lux', cost: 260, range: 200, fireRate: 1.2, projSpd: 340, dmg: 10,
+      color:'#ffd166', key:'LUX', code:'3', draw: drawLux,
+      onTick:(t,dt,now)=>{ if((t._laser||0)<now){ t._laser = now + 7500; laser(t); } },
+      upgrades:[
+        {name:'Lucent Singularity', desc:'+splash on hit', apply:t=>{t.splash=40;}},
+        {name:'Final Spark+', desc:'Laser +35% dmg', apply:t=>{t.laserPlus=true;}},
+        {name:'CDR', desc:'Laser cooldown -30%', apply:t=>{t.laserCDR=true;}}
+      ]
+    },
+    JINX: {
+      name:'Jinx', cost: 240, range: 170, fireRate: .85, projSpd: 300, dmg: 9,
+      color:'#ff77b6', key:'JINX', code:'4', draw: drawJinx,
+      onHit:(c,t)=>{ /* splash */ splashDamage(c, t, 55, Math.round(t.dmg*0.6)); },
+      upgrades:[
+        {name:'Pow-Pow', desc:'AS +20%', apply:t=>{t.fireRate*=0.8;}},
+        {name:'Fishbones', desc:'+splash radius', apply:t=>{t.splashR=true;}},
+        {name:'Super Mega Rocket', desc:'Random big rocket every 10s', apply:t=>{t.ult=(now)=>{ if((t._ult||0)<now){t._ult=now+10000; megaRocket(t);} }; }}
+      ]
+    },
+    TEEMO: {
+      name:'Teemo', cost: 180, range: 120, fireRate: 1.1, projSpd: 260, dmg: 6,
+      color:'#9df27b', key:'TEEMO', code:'5', draw: drawTeemo,
+      onTick:(t,dt,now)=>{ if((t._sh||0)<now){ t._sh = now + 5500; dropShroom(t);} },
+      onHit:(c)=>{ c.burn = Math.max(c.burn, 1200); },
+      upgrades:[
+        {name:'Toxic Shot+', desc:'+2 dmg, +dot', apply:t=>{t.dmg+=2; t.dotPlus=true;}},
+        {name:'Guerrilla', desc:'Mines slow', apply:t=>{t.shSlow=true;}},
+        {name:'Noxious Trap+', desc:'Bigger, stronger shrooms', apply:t=>{t.bigShroom=true;}}
+      ]
+    }
+  };
+
+  const champList = Object.values(Champs);
+
+  // Shop buttons
+  champList.forEach(ch => {
+    const b = document.createElement('button');
+    b.className = 'champ-btn';
+    b.innerHTML = `<span class="champ-swatch" style="background:${ch.color}"></span><span>${ch.name}</span><span class="small" style="margin-left:auto">$${ch.cost}</span>`;
+    b.title = `Press ${ch.code}`;
+    b.onclick = ()=>{ state.placing = ch.key; };
+    shopEl.appendChild(b);
+  });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='p' || e.key==='P'){ togglePause(); }
+    if(e.key==='u' || e.key==='U'){ upgradeSelected(); }
+    if(e.key==='r' || e.key==='R'){ sellSelected(); }
+    // 1..5 shortcuts
+    champList.forEach((ch,i)=>{ if(e.key===String(i+1)) state.placing=ch.key; });
+  });
+
+  startBtn.onclick = nextWave;
+  pauseBtn.onclick = togglePause;
+
+  function togglePause(){ paused = !paused; }
+
+  /* ====== Placement & selection ====== */
+  cvs.addEventListener('mousemove', e=>{ const r=cvs.getBoundingClientRect(); mouse.x=(e.clientX-r.left)*W/r.width; mouse.y=(e.clientY-r.top)*H/r.height; });
+  cvs.addEventListener('mouseleave', ()=>{ mouse.x=-9999; mouse.y=-9999; });
+  cvs.addEventListener('click', placeOrSelect);
+  const mouse = {x:0,y:0};
+
+  function placeOrSelect(){
+    // select tower if clicking one
+    let clicked = state.towers.find(t => dist(t,mouse) < 16);
+    if(clicked){ state.selected = clicked; return; }
+    // else place
+    const key = state.placing; if(!key) return;
+    const C = Champs[key];
+    if(state.gold < C.cost) return;
+    if(!validBuild(mouse.x, mouse.y)) return;
+    const t = { x:Math.round(mouse.x), y:Math.round(mouse.y), r:C.range, cd:0, target:null, lv:0, key, ...cloneTowerBase(C) };
+    state.towers.push(t);
+    state.gold -= C.cost; goldEl.textContent = `Gold: ${state.gold}`;
+    state.selected = t; state.placing = null;
+  }
+
+  function cloneTowerBase(C){
+    return { name:C.name, range:C.range, fireRate:C.fireRate, projSpd:C.projSpd, dmg:C.dmg, color:C.color, draw:C.draw, onHit:C.onHit, onTick:C.onTick, upgrades:C.upgrades.map(u=>({...u})) };
+  }
+
+  function validBuild(x,y){
+    // keep away from path and edges
+    if(x<40||y<40||x>W-40||y>H-40) return false;
+    // distance to polyline
+    for(let i=0;i<path.length-1;i++){
+      const p0=path[i], p1=path[i+1];
+      if(pointSegDist(x,y,p0.x,p0.y,p1.x,p1.y) < 40) return false;
+    }
+    // not overlapping other towers
+    return !state.towers.some(t => dist({x,y},t) < 36);
+  }
+
+  function pointSegDist(x,y,x1,y1,x2,y2){
+    const A=x-x1,B=y-y1,C=x2-x1,D=y2-y1; const dot=A*C+B*D; const len=C*C+D*D; let t=-1; if(len!==0) t=dot/len; t=Math.max(0,Math.min(1,t)); const nx=x1+t*C, ny=y1+t*D; return Math.hypot(x-nx,y-ny);
+  }
+
+  function upgradeSelected(){
+    const t = state.selected; if(!t) return;
+    if(t.lv>=t.upgrades.length) return;
+    const cost = 120 + t.lv*80;
+    if(state.gold < cost) return;
+    state.gold -= cost; goldEl.textContent = `Gold: ${state.gold}`;
+    const up = t.upgrades[t.lv]; if(up && up.apply) up.apply(t);
+    t.lv++;
+  }
+
+  function sellSelected(){
+    const t = state.selected; if(!t) return;
+    // refund
+    const spent = (t.spent||0) + Champs[t.key].cost;
+    const refund = Math.floor(spent*0.7);
+    state.gold += refund; goldEl.textContent = `Gold: ${state.gold}`;
+    state.towers = state.towers.filter(x=>x!==t);
+    state.selected = null;
+  }
+
+  /* ====== Firing & abilities ====== */
+  function towerTick(t, dt, now){
+    // passive/periodic
+    if(t.onTick) t.onTick(t,dt,now);
+    if(t.ult) t.ult(now);
+
+    t.cd -= dt; if(t.cd>0) return;
+    // find target
+    let target = lockFirstInRange(t);
+    if(!target) return;
+
+    // multi-shot
+    const shots = t.multi || 1;
+    for(let i=0;i<shots;i++) fire(t,target,i);
+
+    t.cd = 1000 * t.fireRate;
+  }
+
+  function lockFirstInRange(t){
+    let best=null, bestSeg=-1;
+    for(const c of state.creeps){ if(!c.alive) continue; const d=dist(t,c); if(d<=t.range){ if(c.seg>bestSeg){ best=c; bestSeg=c.seg; } } }
+    return best;
+  }
+  function lockStrongest(){
+    let best=null, hp=-1; for(const c of state.creeps){ if(!c.alive) continue; if(c.hp>hp){ hp=c.hp; best=c; } } return best;
+  }
+
+  function fire(t, target, i){
+    if(!target) return;
+    const ang = Math.atan2(target.y-t.x && (target.y-t.y), target.x-t.x) + (i? (i- (t.multi-1)/2)*0.1 : 0);
+    const b = {x:t.x, y:t.y, vx:Math.cos(ang)*t.projSpd, vy:Math.sin(ang)*t.projSpd, dmg:t.dmg, owner:t, ttl:2500, pierce:1};
+    if(t.key==='LUX' && t.splash) b.splash=t.splash;
+    state.bullets.push(b);
+  }
+
+  function stepBullets(dt){
+    for(const b of state.bullets){ b.ttl-=dt; b.x+=b.vx*dt/1000; b.y+=b.vy*dt/1000; if(b.ttl<=0) b.dead=true; for(const c of state.creeps){ if(!c.alive) continue; if(Math.hypot(b.x-c.x,b.y-c.y)<=14){ damageCreep(c,b.dmg); if(b.owner&&b.owner.onHit) b.owner.onHit(c,b.owner); if(b.splash) splashDamage(c,b.owner,b.splash, Math.round(b.owner.dmg*0.5)); if(--b.pierce<=0){ b.dead=true; break; } } } }
+    state.bullets = state.bullets.filter(b=>!b.dead);
+  }
+
+  // Special moves
+  function spin(t){ // Garen spin AoE
+    const tick = t.spinFast? 5: 8; const hits = t.spinFast? 12: 8;
+    for(let k=0;k<hits;k++) setTimeout(()=>{
+      for(const c of state.creeps){ if(!c.alive) continue; if(dist(t,c)<=t.range){ damageCreep(c, Math.round(t.dmg*0.7)); } }
+      slash(t.x,t.y);
+    }, k*tick);
+  }
+
+  function laser(t){ // Lux laser line
+    const now = performance.now();
+    const cd = t.laserCDR? 7500*0.7 : 7500; t._laser = now + cd;
+    const target = lockStrongest(); if(!target) return;
+    const ang = Math.atan2(target.y-t.y, target.x-t.x);
+    const len = 260;
+    const dmg = Math.round(t.dmg * (t.laserPlus? 4.2: 3.1));
+    // damage along beam
+    for(const c of state.creeps){ if(!c.alive) continue; const d = pointSegDist(c.x,c.y, t.x,t.y, t.x+Math.cos(ang)*len, t.y+Math.sin(ang)*len); if(d<18) damageCreep(c,dmg); }
+    beam(t.x,t.y,ang,len);
+  }
+
+  function megaRocket(t){
+    // damage big area around strongest
+    const target = lockStrongest(); if(!target) return;
+    splashDamage(target,t,80, Math.round(t.dmg*6));
+    pop(target.x,target.y,22);
+  }
+
+  function dropShroom(t){
+    const sh = {x:t.x+(Math.random()*40-20), y:t.y+(Math.random()*40-20), r: t.bigShroom? 52: 38, dmg: t.bigShroom? 12: 8, slow: t.shSlow? 1: 0, ttl: 16000};
+    state.shrooms.push(sh);
+  }
+
+  function stepShrooms(dt){
+    for(const s of state.shrooms){ s.ttl-=dt; if(s.ttl<=0) s.dead=true; for(const c of state.creeps){ if(!c.alive) continue; if(Math.hypot(c.x-s.x,c.y-s.y)<=s.r){ damageCreep(c,s.dmg); if(s.slow) c.slow=Math.max(c.slow,900); c.burn=Math.max(c.burn,1000); } } }
+    state.shrooms = state.shrooms.filter(s=>!s.dead);
+  }
+
+  function splashDamage(center, owner, R, dmg){
+    if(owner && owner.splashR) R+=18;
+    for(const c of state.creeps){ if(!c.alive) continue; if(Math.hypot(c.x-center.x,c.y-center.y)<=R){ damageCreep(c,dmg); } }
+  }
+
+  /* ====== Particles/FX ====== */
+  function pop(x,y, n=8){ for(let i=0;i<n;i++) state.particles.push({x,y, vx:(Math.random()*2-1)*80, vy:(Math.random()*2-1)*80, life:300, col:'#fff'}); }
+  function slash(x,y){ for(let i=0;i<16;i++) state.particles.push({x,y, vx:Math.cos(i/16*2*Math.PI)*120, vy:Math.sin(i/16*2*Math.PI)*120, life:180, col:'#7cff6e'}); }
+  function beam(x,y,a,len){ state.particles.push({beam:true,x,y,a,len,life:140}); }
+  let shakeTime=0; function shake(s){ shakeTime=200; }
+
+  function stepFX(dt){
+    shakeTime-=dt;
+    for(const p of state.particles){ p.life-=dt; if(p.beam) continue; p.x+=p.vx*dt/1000; p.y+=p.vy*dt/1000; }
+    state.particles = state.particles.filter(p=>p.life>0);
+  }
+
+  function drawFX(){
+    for(const p of state.particles){
+      if(p.beam){
+        ctx.save(); ctx.globalAlpha = Math.max(0,p.life/140);
+        ctx.strokeStyle = '#ffe7a1'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.cos(p.a)*p.len, p.y+Math.sin(p.a)*p.len); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+      ctx.globalAlpha = Math.max(0,p.life/300);
+      ctx.fillStyle = p.col; ctx.fillRect(p.x-1,p.y-1,2,2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* ====== Rendering towers (pixel-ish) ====== */
+  function drawAshe(x,y){ pixelChar(x,y,[
+    '...44..',
+    '..4774.',
+    '.477774',
+    '.47aa74',
+    '.477774',
+    '..4aa4.',
+    '...44..',
+  ], {4:'#9ad0ff',7:'#5d7fb8',a:'#cfe7ff'}); }
+  function drawGaren(x,y){ pixelChar(x,y,[
+    '..77..',
+    '.7997.',
+    '79aa97',
+    '79aa97',
+    '.7997.',
+    '..77..',
+    '..55..'
+  ], {7:'#7cff6e',9:'#356f3b',a:'#a6ff99',5:'#3c515e'}); }
+  function drawLux(x,y){ pixelChar(x,y,[
+    '..ee..',
+    '.e99e.',
+    'e9aa9e',
+    'e9aa9e',
+    '.e99e.',
+    '..ee..',
+    '..55..'
+  ], {e:'#ffd166',9:'#915f1a',a:'#fff2b0',5:'#3c3f6b'}); }
+  function drawJinx(x,y){ pixelChar(x,y,[
+    '..pp..',
+    '.p66p.',
+    'p6aa6p',
+    'p6aa6p',
+    '.p66p.',
+    '..pp..',
+    '..55..'
+  ], {p:'#ff77b6',6:'#b74380',a:'#ffc3dd',5:'#3c3f6b'}); }
+  function drawTeemo(x,y){ pixelChar(x,y,[
+    '..gg..',
+    '.g88g.',
+    'g8aa8g',
+    'g8aa8g',
+    '.g88g.',
+    '..gg..',
+    '..55..'
+  ], {g:'#9df27b',8:'#5aa83f',a:'#caffb3',5:'#3c3f6b'}); }
+
+  function pixelChar(x,y,rows,palette){ const s=3; const w=rows[0].length; const h=rows.length; for(let j=0;j<h;j++){ for(let i=0;i<w;i++){ const k=rows[j][i]; if(k==='.'||!palette[k]) continue; ctx.fillStyle=palette[k]; ctx.fillRect(x+i*s-w*1.5, y+j*s-h*1.5, s, s); } } }
+
+  /* ====== Drawing helpers ====== */
+  function drawTowers(){
+    for(const t of state.towers){ t.draw(t.x,t.y); if(t===state.selected){ ctx.strokeStyle='#6ee7ff'; ctx.setLineDash([4,4]); ctx.lineWidth=1; ctx.beginPath(); ctx.arc(t.x,t.y,t.range,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);} }
+  }
+
+  function drawCreeps(){
+    for(const c of state.creeps){
+      // body
+      ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(c.x,c.y,12,0,Math.PI*2); ctx.fill();
+      // hp bar
+      ctx.fillStyle = '#0006'; ctx.fillRect(c.x-12,c.y-16,24,4);
+      const hpw = Math.max(0, 24*c.hp / CreepKinds[c.kind].hp);
+      ctx.fillStyle = '#7cff6e'; ctx.fillRect(c.x-12,c.y-16,hpw,4);
+      if(c.boss){ ctx.strokeStyle='#ffd166'; ctx.lineWidth=2; ctx.strokeRect(c.x-14.5,c.y-14.5,29,29); }
+    }
+  }
+
+  function drawUI(){
+    if(state.placing){
+      ctx.save(); ctx.globalAlpha=.6; ctx.fillStyle='#6ee7ff44'; ctx.beginPath(); ctx.arc(mouse.x,mouse.y,18,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
+  }
+
+  /* ====== Waves ====== */
+  const waveBook = [
+    // regular minions
+    {list:['red','red','red','blue','red','red','blue','red','cannon'], rate: 650},
+    {list:['red','blue','blue','red','blue','blue','cannon','blue','red','blue'], rate: 600},
+    {list:['red','blue','cannon','blue','red','blue','cannon','blue','red','blue'], rate: 550},
+    // Jungle boss enters
+    {list:['red','blue','cannon','redBuff','blue','blue','cannon'], rate: 600},
+    {list:['blue','blue','cannon','blue','blue','redBuff','cannon','blue'], rate: 520},
+    {list:['cannon','blue','blueBuff','blue','cannon','blue','red','blue'], rate: 520},
+    // Dragon
+    {list:['blue','cannon','blue','dragon','blue','cannon','red','blue','cannon'], rate: 520},
+    // Baron
+    {list:['blue','cannon','dragon','baron'], rate: 700}
+  ];
+
+  let spawner = null;
+  function nextWave(){
+    if(spawner) return; // already running
+    state.wave++;
+    waveEl.textContent = `Wave ${state.wave}`;
+    const wave = waveBook[(state.wave-1)%waveBook.length];
+    let i=0;
+    spawner = setInterval(()=>{
+      if(i>=wave.list.length){ clearInterval(spawner); spawner=null; return; }
+      const kind = wave.list[i++]; state.creeps.push(makeCreep(kind));
+    }, wave.rate);
+  }
+
+  /* ====== Main loop ====== */
+  function loop(ts){
+    const dt = Math.min(60, ts - last || 0); last = ts; if(paused){ requestAnimationFrame(loop); return; }
+    acc += dt; while(acc>=TICK){ step(TICK); acc -= TICK; }
+    draw(); requestAnimationFrame(loop);
+  }
+
+  function step(dt){
+    // Move creeps
+    for(const c of state.creeps){ if(c.alive) moveCreep(c,dt); }
+    state.creeps = state.creeps.filter(c=>c.alive);
+
+    // Towers
+    const now = performance.now();
+    for(const t of state.towers){ towerTick(t,dt,now); }
+
+    // Bullets & FX & Shrooms
+    stepBullets(dt); stepShrooms(dt); stepFX(dt);
+
+    // Lose check
+    if(state.lives<=0){ gameOver(); }
+  }
+
+  function gameOver(){
+    paused = true;
+    // reset prompt
+    setTimeout(()=>{ alert('Defeat! The Nexus fell. Reload the page to try again.'); }, 10);
+  }
+
+  function draw(){
+    // camera shake
+    if(shakeTime>0){ const s= (Math.random()*2-1)*4; ctx.setTransform(1,0,0,1,s,s); } else { ctx.setTransform(1,0,0,1,0,0); }
+    drawTerrain();
+    // draw shrooms
+    for(const s of state.shrooms){ ctx.strokeStyle = '#5aff9a'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.stroke(); }
+    drawCreeps();
+    drawTowers();
+    // bullets
+    ctx.fillStyle = '#fff'; for(const b of state.bullets){ ctx.fillRect(b.x-2,b.y-2,4,4); }
+    drawFX();
+    drawUI();
+  }
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
